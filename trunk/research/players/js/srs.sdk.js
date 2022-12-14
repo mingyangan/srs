@@ -24,7 +24,7 @@ function SrsRtcPublisherAsync() {
     self.constraints = {
         audio: true,
         video: {
-            width: {ideal: 320, max: 576}
+            width: {ideal: 1080, max: 1280}
         }
     };
 

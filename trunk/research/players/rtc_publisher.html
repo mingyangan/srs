@@ -16,7 +16,7 @@
     <script type="text/javascript" src="js/srs.page.js"></script>
 </head>
 <body>
-<img src='//ossrs.net/gif/v1/sls.gif?site=ossrs.net&path=/player/rtcpublisher'/>
+<img src='https://ossrs.net/gif/v1/sls.gif?site=ossrs.net&path=/player/rtcpublisher'/>
 <div class="navbar navbar-fixed-top">
     <div class="navbar-inner">
         <div class="container">
@@ -42,15 +42,38 @@
         </div>
     </div>
 </div>
-<div class="container">
+<div class="container" style="width:1280px">
     <div class="form-inline">
-        URL:
-        <input type="text" id="txt_url" class="input-xxlarge" value="">
+        推流URL:
+        <input type="text" id="txt_url_publish" class="input-xxlarge" value="">
         <button class="btn btn-primary" id="btn_publish">开始推流</button>
     </div>
+    </br>
+</br>
+    <div class="form-inline">
+        确认推流URL, webrtc://ip:port/app/{stream_id}, 点击开始推流进行推流；</br>
+        推流Player显示为本地回显
+    </br>
+    </br>
+    </div>
+    <table>
+        <tr>
+            <td>
+                <label><font color="red">推流Player</font></label>
+                <video id="rtc_media_player_publish" width="640px" autoplay muted></video>
+            </td>
+            <td>
+                <div class="form-inline">
+                    播放URL:
+                    <input type="text" id="txt_url_play" class="input-xxlarge" value="">
+                    <button class="btn btn-primary" id="btn_play">拉流</button>
+                </div>
+                <video id="rtc_media_player" width="640px" controls autoplay></video>
+            </td>
+        </tr>
+    </table>
 
-    <label></label>
-    <video id="rtc_media_player" width="320" autoplay muted></video>
+
 
     <label></label>
     SessionID: <span id='sessionid'></span>
@@ -69,33 +92,34 @@
 </div>
 <script type="text/javascript">
 $(function(){
-    var sdk = null; // Global handler to do cleanup when republishing.
+    var sdkPublish = null; // Global handler to do cleanup when republishing.
+    var sdk = null, sdk2=null, sdk3=null;
     var startPublish = function() {
-        $('#rtc_media_player').show();
+        $('#rtc_media_player_publish').show();
 
         // Close PC when user replay.
-        if (sdk) {
-            sdk.close();
+        if (sdkPublish) {
+            sdkPublish.close();
         }
-        sdk = new SrsRtcPublisherAsync();
+        sdkPublish = new SrsRtcPublisherAsync();
 
         // User should set the stream when publish is done, @see https://webrtc.org/getting-started/media-devices
         // However SRS SDK provides a consist API like https://webrtc.org/getting-started/remote-streams
-        $('#rtc_media_player').prop('srcObject', sdk.stream);
+        $('#rtc_media_player_publish').prop('srcObject', sdkPublish.stream);
         // Optional callback, SDK will add track to stream.
         // sdk.ontrack = function (event) { console.log('Got track', event); sdk.stream.addTrack(event.track); };
 
         // https://developer.mozilla.org/en-US/docs/Web/Media/Formats/WebRTC_codecs#getting_the_supported_codecs
-        sdk.pc.onicegatheringstatechange = function (event) {
-            if (sdk.pc.iceGatheringState === "complete") {
-                $('#acodecs').html(SrsRtcFormatSenders(sdk.pc.getSenders(), "audio"));
-                $('#vcodecs').html(SrsRtcFormatSenders(sdk.pc.getSenders(), "video"));
+        sdkPublish.pc.onicegatheringstatechange = function (event) {
+            if (sdkPublish.pc.iceGatheringState === "complete") {
+                $('#acodecs').html(SrsRtcFormatSenders(sdkPublish.pc.getSenders(), "audio"));
+                $('#vcodecs').html(SrsRtcFormatSenders(sdkPublish.pc.getSenders(), "video"));
             }
         };
 
         // For example: webrtc://r.ossrs.net/live/livestream
-        var url = $("#txt_url").val();
-        sdk.publish(url).then(function(session){
+        var url = $("#txt_url_publish").val();
+        sdkPublish.publish(url).then(function(session){
             $('#sessionid').html(session.sessionid);
             $('#simulator-drop').attr('href', session.simulator + '?drop=1&username=' + session.sessionid);
         }).catch(function (reason) {
@@ -118,21 +142,87 @@ $(function(){
                 }
             }
 
-            sdk.close();
-            $('#rtc_media_player').hide();
+            sdkPublish.close();
+            $('#rtc_media_player_publish').hide();
             console.error(reason);
         });
     };
 
-    $('#rtc_media_player').hide();
+
+    var startPlay = function(player_id, sdk) {
+        $('#' + player_id).show();
+
+        // Close PC when user replay.
+        if (sdk) {
+            sdk.close();
+        }
+        sdk = new SrsRtcPlayerAsync();
+
+        // https://webrtc.org/getting-started/remote-streams
+        $('#' + player_id).prop('srcObject', sdk.stream);
+        // Optional callback, SDK will add track to stream.
+        // sdk.ontrack = function (event) { console.log('Got track', event); sdk.stream.addTrack(event.track); };
+
+        // For example: webrtc://r.ossrs.net/live/livestream
+        var url = $("#txt_url_play").val();
+        sdk.play(url).then(function(session){
+            $('#sessionid').html(session.sessionid);
+            $('#simulator-drop').attr('href', session.simulator + '?drop=1&username=' + session.sessionid);
+        }).catch(function (reason) {
+            sdk.close();
+            $('#' + player_id).hide();
+            console.error(reason);
+        });
+    };
+
+    $('#rtc_media_player_publish').show();
     var query = parse_query_string();
-    srs_init_rtc("#txt_url", query);
+    srs_init_rtc("#txt_url_publish", query);
+    srs_init_rtc("#txt_url_play", query);
 
     $("#btn_publish").click(startPublish);
     // Never play util windows loaded @see https://github.com/ossrs/srs/issues/2732
     if (query.autostart === 'true') {
         window.addEventListener("load", function(){ startPublish(); });
     }
+
+
+    $("#btn_play").click(function() {
+        $('#rtc_media_player').prop('muted', false);
+        startPlay("rtc_media_player", sdk);
+    });
+    if (query.autostart === 'true') {
+        $('#rtc_media_player').prop('muted', true);
+        console.warn('For autostart, we should mute it, see https://www.jianshu.com/p/c3c6944eed5a ' +
+            'or https://developers.google.com/web/updates/2017/09/autoplay-policy-changes#audiovideo_elements');
+
+        startPlay("rtc_media_player", sdk);
+    }
+
+    $("#btn_play2").click(function() {
+        $('#rtc_media_player2').prop('muted', false);
+        startPlay("rtc_media_player2", sdk2);
+    });
+    if (query.autostart === 'true') {
+        $('#rtc_media_player2').prop('muted', true);
+        console.warn('For autostart, we should mute it, see https://www.jianshu.com/p/c3c6944eed5a ' +
+            'or https://developers.google.com/web/updates/2017/09/autoplay-policy-changes#audiovideo_elements');
+
+        startPlay("rtc_media_player2", sdk2);
+    }
+
+    $("#btn_play3").click(function() {
+        $('#rtc_media_player3').prop('muted', false);
+        startPlay("rtc_media_player3", sdk3);
+    });
+    if (query.autostart === 'true') {
+        $('#rtc_media_player3').prop('muted', true);
+        console.warn('For autostart, we should mute it, see https://www.jianshu.com/p/c3c6944eed5a ' +
+            'or https://developers.google.com/web/updates/2017/09/autoplay-policy-changes#audiovideo_elements');
+
+        startPlay("rtc_media_player3", sdk3);
+    }
+
 });
 </script>
 </body>
